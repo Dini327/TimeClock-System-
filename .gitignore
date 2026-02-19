@@ -1,0 +1,113 @@
+# =============================================================================
+# .gitignore for Time Clock System
+# Covers: ASP.NET Core (C#) + Node.js / React (Vite) + common tooling
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# ASP.NET Core / .NET
+# -----------------------------------------------------------------------------
+## Build output
+bin/
+obj/
+
+## Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Entity Framework migrations snapshot (keep Migrations folder, ignore snapshots if preferred)
+# Uncomment the next line to ignore all generated EF snapshots:
+# *ModelSnapshot.cs
+
+## Rider / JetBrains
+.idea/
+*.DotSettings.user
+
+## Publish profiles & sensitive config
+**/Properties/PublishProfiles/
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+
+## User secrets (stored outside repo by design, but guard against accidental inclusion)
+secrets.json
+
+## Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage*/
+
+# -----------------------------------------------------------------------------
+# Node.js / React (Vite)
+# -----------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+## Vite cache
+.vite/
+
+## Package manager locks (keep one; ignore the others)
+# Uncomment whichever you are NOT using:
+# yarn.lock
+# pnpm-lock.yaml
+
+## Environment variable files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+## npm / yarn debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -----------------------------------------------------------------------------
+# OS / Editor artifacts
+# -----------------------------------------------------------------------------
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+## Linux
+*~
+
+## VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+## Vim / Emacs swap files
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# Docker (if added later)
+# -----------------------------------------------------------------------------
+docker-compose.override.yml
