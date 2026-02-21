@@ -126,6 +126,43 @@ public class AttendanceService : IAttendanceService
         }
     }
 
+    public async Task<AttendanceLog> AdminCloseShiftAsync(Guid userId)
+    {
+        var lastLog = await _attendanceRepository.GetLastLogForUserAsync(userId);
+
+        if (lastLog == null || lastLog.EventType != EventType.ClockIn)
+            throw new InvalidOperationException(
+                "Cannot close shift: the user does not have an active shift.");
+
+        var (timestamp, source) = await GetVerifiedTimeAsync(userId);
+
+        var closeLog = new AttendanceLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            EventType = EventType.AutoClose,
+            OfficialTimestamp = timestamp,
+            TimeSource = $"Admin Override via {source}",
+            IsAutoClosed = true
+        };
+
+        await _attendanceRepository.AddAsync(closeLog);
+
+        await _alertRepository.AddAsync(new SystemAlert
+        {
+            Id = Guid.NewGuid(),
+            Message = $"Shift for user {userId} was manually closed by an administrator.",
+            Severity = AlertSeverity.Info,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        _logger.LogInformation(
+            "Admin force-closed shift for user {UserId} at {Timestamp}.",
+            userId, timestamp);
+
+        return closeLog;
+    }
+
     // ── Private helpers ──────────────────────────────────────────────────────
 
     /// <summary>

@@ -32,4 +32,10 @@ public interface IAttendanceService
     /// with an AutoClose event. Called by a background job or on each clock-in attempt.
     /// </summary>
     Task CloseOrphanShiftsAsync();
+
+    /// <summary>
+    /// Admin override: force-closes the currently active shift for the given user,
+    /// regardless of its age. Creates an AutoClose log using the current verified time.
+    /// </summary>
+    Task<AttendanceLog> AdminCloseShiftAsync(Guid userId);
 }
