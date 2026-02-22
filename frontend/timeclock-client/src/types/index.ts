@@ -33,6 +33,7 @@ export interface AttendanceLog {
   id:                string;
   userId:            string;
   fullName:          string;
+  email:             string;
   eventType:         EventType;
   officialTimestamp: string;   // ISO 8601 with offset, e.g. "2025-06-01T08:30:00+02:00"
   timeSource:        string;

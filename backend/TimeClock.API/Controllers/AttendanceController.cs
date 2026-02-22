@@ -109,6 +109,7 @@ public class AttendanceController : ControllerBase
         Id                = log.Id,
         UserId            = log.UserId,
         FullName          = fullName,
+        Email             = log.User?.Email ?? string.Empty,
         EventType         = log.EventType,
         OfficialTimestamp = log.OfficialTimestamp,
         TimeSource        = log.TimeSource,
