@@ -1,7 +1,9 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TimeClock.Infrastructure;
+using TimeClock.Infrastructure.Data;
 using TimeClock.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -80,6 +82,14 @@ builder.Services.AddCors(options =>
 
 // ── Build & Pipeline ──────────────────────────────────────────────────────────
 var app = builder.Build();
+
+// ── DB Migration + Seed ───────────────────────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();          // apply any pending EF migrations
+    DbInitializer.Initialize(db);   // seed default users if table is empty
+}
 
 if (app.Environment.IsDevelopment())
 {
