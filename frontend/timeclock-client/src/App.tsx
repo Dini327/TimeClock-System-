@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import EmployeeDashboardPage from './pages/EmployeeDashboardPage';
-import AdminPage from './pages/AdminPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 function App() {
   return (
@@ -17,7 +17,7 @@ function App() {
 
       {/* Admin only */}
       <Route element={<ProtectedRoute requiredRole="Admin" />}>
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin" element={<AdminDashboardPage />} />
       </Route>
 
       {/* Fallback */}
