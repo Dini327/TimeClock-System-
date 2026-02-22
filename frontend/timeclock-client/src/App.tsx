@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
+import EmployeeDashboardPage from './pages/EmployeeDashboardPage';
 import AdminPage from './pages/AdminPage';
 
 function App() {
@@ -12,7 +12,7 @@ function App() {
 
       {/* Any authenticated user */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<EmployeeDashboardPage />} />
       </Route>
 
       {/* Admin only */}
