@@ -26,10 +26,12 @@ public class AdminController : ControllerBase
 
     /// <summary>
     /// Returns all users who are currently clocked in (live status for Admin dashboard).
+    /// Also triggers orphan-shift alert generation for shifts open longer than 12 hours.
     /// </summary>
     [HttpGet("live-status")]
     public async Task<ActionResult<IEnumerable<AttendanceLogDto>>> GetLiveStatus()
     {
+        await _attendanceService.CheckOrphanShiftAlertsAsync();
         var shifts = await _attendanceService.GetActiveShiftsAsync();
         return Ok(shifts.Select(ToDto));
     }
@@ -66,13 +68,14 @@ public class AdminController : ControllerBase
 
     /// <summary>
     /// Force-closes the currently active shift for the specified user.
+    /// Requires an explicit end time and a documented reason for the audit trail.
     /// </summary>
     [HttpPost("close-shift")]
     public async Task<ActionResult<AttendanceLogDto>> CloseShift([FromBody] ManualShiftCloseDto dto)
     {
         try
         {
-            var log = await _attendanceService.AdminCloseShiftAsync(dto.UserId);
+            var log = await _attendanceService.AdminCloseShiftAsync(dto);
             return Ok(ToDto(log));
         }
         catch (InvalidOperationException ex)
@@ -90,6 +93,7 @@ public class AdminController : ControllerBase
         EventType         = log.EventType,
         OfficialTimestamp = log.OfficialTimestamp,
         TimeSource        = log.TimeSource,
-        IsAutoClosed      = log.IsAutoClosed
+        IsManuallyClosed  = log.IsManuallyClosed,
+        ManualCloseReason = log.ManualCloseReason
     };
 }

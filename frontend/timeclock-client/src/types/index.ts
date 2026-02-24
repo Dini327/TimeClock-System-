@@ -1,7 +1,7 @@
 // ── Enums (mirror backend C# enums) ──────────────────────────────────────────
 
 export type UserRole      = 'Employee' | 'Admin';
-export type EventType     = 'ClockIn' | 'ClockOut' | 'AutoClose';
+export type EventType     = 'ClockIn' | 'ClockOut' | 'ManualClose';
 export type AlertSeverity = 'Info' | 'Warning' | 'Critical';
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -37,7 +37,8 @@ export interface AttendanceLog {
   eventType:         EventType;
   officialTimestamp: string;   // ISO 8601 with offset, e.g. "2025-06-01T08:30:00+02:00"
   timeSource:        string;
-  isAutoClosed:      boolean;
+  isManuallyClosed:  boolean;
+  manualCloseReason: string | null;
 }
 
 /** Mirrors UserStatusDto */
@@ -58,5 +59,7 @@ export interface SystemAlert {
 
 /** Mirrors ManualShiftCloseDto */
 export interface ManualShiftClose {
-  userId: string;
+  userId:        string;
+  manualEndTime: string;   // ISO 8601 DateTimeOffset
+  reason:        string;
 }

@@ -1,3 +1,4 @@
+using TimeClock.Core.DTOs;
 using TimeClock.Core.Entities;
 
 namespace TimeClock.Core.Interfaces.Services;
@@ -28,14 +29,15 @@ public interface IAttendanceService
     Task<IEnumerable<AttendanceLog>> GetActiveShiftsAsync();
 
     /// <summary>
-    /// Scans for open ClockIn entries older than 16 hours and closes them automatically
-    /// with an AutoClose event. Called by a background job or on each clock-in attempt.
+    /// Scans for open ClockIn entries older than 12 hours and creates a Warning
+    /// SystemAlert for each one. Shifts remain open — only admins can close them.
     /// </summary>
-    Task CloseOrphanShiftsAsync();
+    Task CheckOrphanShiftAlertsAsync();
 
     /// <summary>
-    /// Admin override: force-closes the currently active shift for the given user,
-    /// regardless of its age. Creates an AutoClose log using the current verified time.
+    /// Admin override: force-closes the currently active shift for the given user.
+    /// Uses the admin-supplied ManualEndTime, records the reason, and sets
+    /// TimeSource to "Admin-Override".
     /// </summary>
-    Task<AttendanceLog> AdminCloseShiftAsync(Guid userId);
+    Task<AttendanceLog> AdminCloseShiftAsync(ManualShiftCloseDto dto);
 }

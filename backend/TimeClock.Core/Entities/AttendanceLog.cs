@@ -16,15 +16,21 @@ public class AttendanceLog
 
     /// <summary>
     /// Name of the external API that provided the timestamp (e.g. "worldtimeapi.org").
-    /// Used for audit purposes.
+    /// Used for audit purposes. Set to "Admin-Override" when an admin manually closes.
     /// </summary>
     public string TimeSource { get; set; } = string.Empty;
 
     /// <summary>
-    /// True when the shift was closed automatically by the system after 16 hours
-    /// of inactivity, rather than by an explicit Clock Out from the employee.
+    /// True when this ClockOut was force-closed by an administrator rather than
+    /// by an explicit Clock Out from the employee.
     /// </summary>
-    public bool IsAutoClosed { get; set; }
+    public bool IsManuallyClosed { get; set; }
+
+    /// <summary>
+    /// The reason provided by the administrator when manually closing a shift.
+    /// Null for normal clock-out events.
+    /// </summary>
+    public string? ManualCloseReason { get; set; }
 
     // Navigation property
     public User User { get; set; } = null!;

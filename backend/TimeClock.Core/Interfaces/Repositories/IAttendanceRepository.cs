@@ -18,7 +18,7 @@ public interface IAttendanceRepository
 
     /// <summary>
     /// Returns all open ClockIn entries where OfficialTimestamp is older than
-    /// the given duration. Used for orphan-shift auto-close detection.
+    /// the given duration. Used for orphan-shift alert detection (12h threshold).
     /// </summary>
     Task<IEnumerable<AttendanceLog>> GetOpenShiftsOlderThanAsync(TimeSpan duration);
 
