@@ -27,17 +27,18 @@
 - **Polly retry policy** — the primary time API is retried up to 3 times with exponential back-off (2 s → 4 s → 8 s) before falling back.
 - **Automatic fallback** — if WorldTimeAPI fails, the system seamlessly switches to timeapi.io.
 - **Hard block on failure** — if both time APIs are unavailable, Clock In/Out is blocked and a `Critical` system alert is raised. No guesses, no silent failures.
-- **Orphan Shift Auto-Close** — a background scanner detects shifts open for more than 16 hours and closes them automatically at `ClockIn + 16h` (deterministic, payroll-safe).
+- **Manual Admin Close & Audit Trail** — open shifts are never closed automatically. If a shift remains open for more than 12 hours, the system generates a `Warning` alert and highlights the shift in red on the Admin dashboard. Only an administrator can close it by providing an explicit end time and a documented reason.
 
 ### Employee Dashboard
 - One-tap Clock In / Clock Out with live elapsed timer (`HH:mm:ss`).
 - Real-time status chip and last-event details.
-- Recent attendance history with colour-coded event chips.
+- Recent attendance history with colour-coded event chips (including **Admin Closed** for admin-forced closures, showing the recorded reason).
 - Graceful 503 error message when the time service is temporarily unavailable.
 
 ### Admin Dashboard
 - **Live status table** — all clocked-in employees with real-time duration counters.
-- **Force-close shift** — admin can close any open shift immediately.
+- **Orphan shift highlighting** — shifts open longer than 12 hours are shown with a **red background** and a warning icon.
+- **Force-close shift modal** — admin provides an exact end time (DateTime picker) and a mandatory reason before confirming the close. Both are saved to the audit trail.
 - **System Alerts Center** — colour-coded list (Critical / Warning / Info) with a notification badge for recent critical events.
 - Auto-refreshes every 30 seconds without a page reload.
 
@@ -195,13 +196,30 @@ The system is designed for environments where **local system clocks cannot be tr
 
 Timestamps are stored as `DateTimeOffset` (Zurich time with UTC offset) in SQL Server `datetimeoffset` columns, making payroll queries timezone-aware and unambiguous.
 
-### Orphan Shift Logic
+### Manual Admin Close & Audit Trail
 
-If an employee forgets to clock out, the system detects this automatically:
+Open shifts are **never closed automatically**. The workflow for handling a forgotten clock-out is:
 
-- On every Clock In, if the previous log is a ClockIn older than 16 hours → auto-close it first.
-- A background `CloseOrphanShiftsAsync` method can also be called by a scheduled job.
-- The auto-close timestamp is always `OriginalClockIn + 16h` — **never** the current time — ensuring the payroll calculation is deterministic regardless of when the system discovers the orphan.
+```
+1. Shift remains open indefinitely — no silent auto-closure.
+2. At each admin dashboard refresh, CheckOrphanShiftAlertsAsync() runs:
+   → Finds all ClockIn entries open for > 12 hours.
+   → Creates a Warning SystemAlert: "User {Name} has an open shift for over 12 hours."
+3. Admin sees the shift highlighted in red in the Live Status table.
+4. Admin clicks "Force Close" → a modal opens requiring:
+   → ManualEndTime  (DateTime picker — the exact end time to record)
+   → Reason         (free-text — mandatory, saved to the audit trail)
+5. On confirm, the system creates a ManualClose log entry with:
+   → EventType       = ManualClose
+   → OfficialTimestamp = admin-supplied ManualEndTime
+   → TimeSource      = "Admin-Override"
+   → IsManuallyClosed = true
+   → ManualCloseReason = provided reason
+6. An Info SystemAlert is created: "Shift for {Name} was manually closed. Reason: …"
+7. The shift disappears from the live status table.
+```
+
+The `ManualCloseReason` is visible to the employee in their attendance history, providing full transparency.
 
 ---
 
@@ -223,9 +241,9 @@ If an employee forgets to clock out, the system detects this automatically:
 ### Admin
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/api/admin/live-status` | Admin | All currently clocked-in employees |
+| GET | `/api/admin/live-status` | Admin | All currently clocked-in employees (also triggers orphan-shift alert scan) |
 | GET | `/api/admin/alerts` | Admin | System alerts (filterable by severity/time) |
-| POST | `/api/admin/close-shift` | Admin | Force-close a user's active shift |
+| POST | `/api/admin/close-shift` | Admin | Force-close a user's active shift (requires `ManualEndTime` + `Reason`) |
 
 ---
 

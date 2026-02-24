@@ -17,6 +17,7 @@ public class AttendanceRepository : IAttendanceRepository
 
     public async Task<AttendanceLog?> GetLastLogForUserAsync(Guid userId) =>
         await _context.AttendanceLogs
+            .Include(l => l.User)
             .Where(l => l.UserId == userId)
             .OrderByDescending(l => l.OfficialTimestamp)
             .FirstOrDefaultAsync();

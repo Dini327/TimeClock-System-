@@ -34,22 +34,22 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString('en-GB', {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
 }
 
 const EVENT_LABELS: Record<EventType, string> = {
-  ClockIn:   'Clock In',
-  ClockOut:  'Clock Out',
-  AutoClose: 'Auto Close',
+  ClockIn:     'Clock In',
+  ClockOut:    'Clock Out',
+  ManualClose: 'Admin Closed',
 };
 
 const EVENT_COLORS: Record<EventType, 'success' | 'primary' | 'warning'> = {
-  ClockIn:   'success',
-  ClockOut:  'primary',
-  AutoClose: 'warning',
+  ClockIn:     'success',
+  ClockOut:    'primary',
+  ManualClose: 'warning',
 };
 
 function getApiErrorMessage(error: unknown): string {
@@ -271,7 +271,11 @@ function EmployeeDashboardPage() {
                             </Typography>
                           </Box>
                         }
-                        secondary={log.timeSource}
+                        secondary={
+                          log.isManuallyClosed && log.manualCloseReason
+                            ? `${log.timeSource} · Reason: ${log.manualCloseReason}`
+                            : log.timeSource
+                        }
                       />
                     </ListItem>
                   </Box>

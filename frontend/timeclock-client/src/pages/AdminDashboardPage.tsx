@@ -26,15 +26,27 @@ import {
   List,
   ListItem,
   Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Tooltip,
 } from '@mui/material';
 import {
   AccessTime,
   Logout,
   Notifications,
   StopCircle,
+  AdminPanelSettings,
+  Warning,
 } from '@mui/icons-material';
 import { getLiveStatus, getAlerts, closeShift } from '../api/admin';
-import type { StoredUser, AttendanceLog, AlertSeverity } from '../types';
+import type { StoredUser, AttendanceLog, AlertSeverity, ManualShiftClose } from '../types';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ORPHAN_HOURS = 12;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -46,10 +58,20 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString('en-GB', {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+}
+
+/** Convert a JS Date to a local datetime-local string (yyyy-MM-ddTHH:mm) */
+function toDatetimeLocalString(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function isOrphanShift(officialTimestamp: string): boolean {
+  return (Date.now() - new Date(officialTimestamp).getTime()) > ORPHAN_HOURS * 60 * 60 * 1000;
 }
 
 const SEVERITY_COLOR: Record<AlertSeverity, 'error' | 'warning' | 'info'> = {
@@ -72,6 +94,102 @@ function getApiErrorMessage(error: unknown): string {
   return 'An unexpected error occurred. Please try again.';
 }
 
+// ── Force-Close Modal ─────────────────────────────────────────────────────────
+
+interface ForceCloseModalProps {
+  open:     boolean;
+  log:      AttendanceLog | null;
+  onClose:  () => void;
+  onSubmit: (data: ManualShiftClose) => void;
+  loading:  boolean;
+}
+
+function ForceCloseModal({ open, log, onClose, onSubmit, loading }: ForceCloseModalProps) {
+  const [endTime, setEndTime] = useState('');
+  const [reason, setReason]   = useState('');
+  const [errors, setErrors]   = useState<{ endTime?: string; reason?: string }>({});
+
+  // Pre-fill end time with current local time whenever the modal opens
+  useEffect(() => {
+    if (open) {
+      setEndTime(toDatetimeLocalString(new Date()));
+      setReason('');
+      setErrors({});
+    }
+  }, [open]);
+
+  const validate = () => {
+    const e: typeof errors = {};
+    if (!endTime) e.endTime = 'End time is required.';
+    if (!reason.trim()) e.reason = 'Reason is required.';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate() || !log) return;
+    onSubmit({
+      userId:        log.userId,
+      manualEndTime: new Date(endTime).toISOString(),
+      reason:        reason.trim(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AdminPanelSettings color="error" />
+        Force-Close Shift
+      </DialogTitle>
+      <DialogContent dividers>
+        {log && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            You are about to force-close the shift for <strong>{log.fullName}</strong> (opened{' '}
+            {formatTimestamp(log.officialTimestamp)}). This action is logged and cannot be undone.
+          </Alert>
+        )}
+
+        <TextField
+          label="End Time"
+          type="datetime-local"
+          fullWidth
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          error={!!errors.endTime}
+          helperText={errors.endTime ?? 'Select the exact time to record as the shift end.'}
+          InputLabelProps={{ shrink: true }}
+          sx={{ mb: 2 }}
+        />
+
+        <TextField
+          label="Reason"
+          fullWidth
+          required
+          multiline
+          minRows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          error={!!errors.reason}
+          helperText={errors.reason ?? 'Explain why this shift is being closed manually.'}
+          placeholder="e.g. Employee forgot to clock out before going on leave."
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button
+          variant="contained"
+          color="error"
+          onClick={handleSubmit}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <StopCircle />}
+        >
+          {loading ? 'Closing…' : 'Confirm Force Close'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function AdminDashboardPage() {
@@ -84,7 +202,7 @@ function AdminDashboardPage() {
   // Single ticker shared by all duration cells
   const [now, setNow]               = useState(() => Date.now());
   const [closeError, setCloseError] = useState<string | null>(null);
-  const [closingId, setClosingId]   = useState<string | null>(null);
+  const [modalLog, setModalLog]     = useState<AttendanceLog | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -111,27 +229,36 @@ function AdminDashboardPage() {
     return (Date.now() - new Date(a.createdAtUtc).getTime()) < 60 * 60 * 1000;
   }).length ?? 0;
 
+  // Count of currently active orphan shifts (> 12h) for the warning chip
+  const orphanCount = liveQuery.data?.filter(
+    (l) => isOrphanShift(l.officialTimestamp)
+  ).length ?? 0;
+
   // ── Close-shift mutation ──────────────────────────────────────────────────
 
   const handleCloseSuccess = useCallback(() => {
     setCloseError(null);
-    setClosingId(null);
+    setModalLog(null);
     void queryClient.invalidateQueries({ queryKey: ['admin', 'live-status'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
   }, [queryClient]);
 
   const closeMutation = useMutation({
     mutationFn: closeShift,
     onSuccess:  handleCloseSuccess,
     onError: (err) => {
-      setClosingId(null);
+      setModalLog(null);
       setCloseError(getApiErrorMessage(err));
     },
   });
 
-  const handleForceClose = (userId: string) => {
-    setClosingId(userId);
+  const handleOpenModal = (log: AttendanceLog) => {
     setCloseError(null);
-    closeMutation.mutate({ userId });
+    setModalLog(log);
+  };
+
+  const handleModalSubmit = (data: ManualShiftClose) => {
+    closeMutation.mutate(data);
   };
 
   // ── Logout ────────────────────────────────────────────────────────────────
@@ -179,6 +306,18 @@ function AdminDashboardPage() {
           </Alert>
         )}
 
+        {/* Orphan-shift warning banner */}
+        {orphanCount > 0 && (
+          <Alert
+            severity="warning"
+            icon={<Warning />}
+            sx={{ mb: 3 }}
+          >
+            <strong>{orphanCount} shift{orphanCount > 1 ? 's have' : ' has'} been open for over {ORPHAN_HOURS} hours.</strong>{' '}
+            These are highlighted in red below. Please review and force-close them if necessary.
+          </Alert>
+        )}
+
         {/* ── Live Status Table ── */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
@@ -217,18 +356,31 @@ function AdminDashboardPage() {
                   </TableHead>
                   <TableBody>
                     {liveQuery.data.map((log: AttendanceLog) => {
-                      const elapsed   = Math.max(0, Math.floor((now - new Date(log.officialTimestamp).getTime()) / 1000));
-                      const isClosing = closingId === log.userId && closeMutation.isPending;
+                      const elapsed  = Math.max(0, Math.floor((now - new Date(log.officialTimestamp).getTime()) / 1000));
+                      const isOrphan = isOrphanShift(log.officialTimestamp);
                       return (
-                        <TableRow key={log.id} hover>
-                          <TableCell sx={{ fontWeight: 500 }}>{log.fullName}</TableCell>
+                        <TableRow
+                          key={log.id}
+                          hover
+                          sx={isOrphan ? { bgcolor: '#FFF0F0', '&:hover': { bgcolor: '#FFE0E0' } } : {}}
+                        >
+                          <TableCell sx={{ fontWeight: 500 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              {log.fullName}
+                              {isOrphan && (
+                                <Tooltip title={`Shift open for over ${ORPHAN_HOURS} hours`}>
+                                  <Warning fontSize="small" color="error" />
+                                </Tooltip>
+                              )}
+                            </Box>
+                          </TableCell>
                           <TableCell sx={{ color: 'text.secondary' }}>{log.email}</TableCell>
                           <TableCell>{formatTimestamp(log.officialTimestamp)}</TableCell>
                           <TableCell>
                             <Typography
                               fontFamily="monospace"
                               fontSize="0.85rem"
-                              color="success.main"
+                              color={isOrphan ? 'error.main' : 'success.main'}
                               fontWeight={700}
                             >
                               {formatElapsed(elapsed)}
@@ -240,14 +392,10 @@ function AdminDashboardPage() {
                               color="error"
                               size="small"
                               disabled={closeMutation.isPending}
-                              startIcon={
-                                isClosing
-                                  ? <CircularProgress size={14} color="inherit" />
-                                  : <StopCircle />
-                              }
-                              onClick={() => handleForceClose(log.userId)}
+                              startIcon={<StopCircle />}
+                              onClick={() => handleOpenModal(log)}
                             >
-                              {isClosing ? 'Closing…' : 'Force Close'}
+                              Force Close
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -330,6 +478,16 @@ function AdminDashboardPage() {
         </Card>
 
       </Container>
+
+      {/* ── Force-Close Modal ── */}
+      <ForceCloseModal
+        open={modalLog !== null}
+        log={modalLog}
+        onClose={() => setModalLog(null)}
+        onSubmit={handleModalSubmit}
+        loading={closeMutation.isPending}
+      />
+
     </Box>
   );
 }

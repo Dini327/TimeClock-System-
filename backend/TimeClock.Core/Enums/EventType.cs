@@ -4,5 +4,5 @@ public enum EventType
 {
     ClockIn,
     ClockOut,
-    AutoClose
+    ManualClose
 }

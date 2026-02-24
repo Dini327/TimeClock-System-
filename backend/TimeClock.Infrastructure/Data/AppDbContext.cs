@@ -60,9 +60,13 @@ public class AppDbContext : DbContext
                   .IsRequired()
                   .HasMaxLength(100);
 
-            entity.Property(a => a.IsAutoClosed)
+            entity.Property(a => a.IsManuallyClosed)
                   .IsRequired()
                   .HasDefaultValue(false);
+
+            entity.Property(a => a.ManualCloseReason)
+                  .HasMaxLength(500)
+                  .IsRequired(false);
 
             entity.HasOne(a => a.User)
                   .WithMany(u => u.AttendanceLogs)

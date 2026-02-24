@@ -113,6 +113,7 @@ public class AttendanceController : ControllerBase
         EventType         = log.EventType,
         OfficialTimestamp = log.OfficialTimestamp,
         TimeSource        = log.TimeSource,
-        IsAutoClosed      = log.IsAutoClosed
+        IsManuallyClosed  = log.IsManuallyClosed,
+        ManualCloseReason = log.ManualCloseReason
     };
 }

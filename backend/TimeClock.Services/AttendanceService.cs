@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TimeClock.Core.DTOs;
 using TimeClock.Core.Entities;
 using TimeClock.Core.Enums;
 using TimeClock.Core.Exceptions;
@@ -9,7 +10,7 @@ namespace TimeClock.Services;
 
 public class AttendanceService : IAttendanceService
 {
-    private static readonly TimeSpan OrphanShiftThreshold = TimeSpan.FromHours(16);
+    private static readonly TimeSpan OrphanAlertThreshold = TimeSpan.FromHours(12);
 
     private readonly IAttendanceRepository _attendanceRepository;
     private readonly ISystemAlertRepository _alertRepository;
@@ -34,22 +35,8 @@ public class AttendanceService : IAttendanceService
 
         if (lastLog?.EventType == EventType.ClockIn)
         {
-            var shiftAge = DateTimeOffset.UtcNow - lastLog.OfficialTimestamp;
-
-            if (shiftAge >= OrphanShiftThreshold)
-            {
-                // Orphan shift: auto-close before allowing the new clock-in
-                _logger.LogInformation(
-                    "Orphan shift detected for user {UserId} ({Hours}h old). Auto-closing.",
-                    userId, (int)shiftAge.TotalHours);
-
-                await AutoCloseShiftAsync(lastLog);
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    "Cannot clock in: the user is already clocked in.");
-            }
+            throw new InvalidOperationException(
+                "Cannot clock in: the user is already clocked in.");
         }
 
         var (timestamp, source) = await GetVerifiedTimeAsync(userId);
@@ -61,7 +48,7 @@ public class AttendanceService : IAttendanceService
             EventType = EventType.ClockIn,
             OfficialTimestamp = timestamp,
             TimeSource = source,
-            IsAutoClosed = false
+            IsManuallyClosed = false
         };
 
         await _attendanceRepository.AddAsync(log);
@@ -90,7 +77,7 @@ public class AttendanceService : IAttendanceService
             EventType = EventType.ClockOut,
             OfficialTimestamp = timestamp,
             TimeSource = source,
-            IsAutoClosed = false
+            IsManuallyClosed = false
         };
 
         await _attendanceRepository.AddAsync(log);
@@ -111,54 +98,63 @@ public class AttendanceService : IAttendanceService
     public async Task<IEnumerable<AttendanceLog>> GetActiveShiftsAsync() =>
         await _attendanceRepository.GetActiveShiftsAsync();
 
-    public async Task CloseOrphanShiftsAsync()
+    public async Task CheckOrphanShiftAlertsAsync()
     {
         var orphans = await _attendanceRepository
-            .GetOpenShiftsOlderThanAsync(OrphanShiftThreshold);
+            .GetOpenShiftsOlderThanAsync(OrphanAlertThreshold);
 
         foreach (var shift in orphans)
         {
-            _logger.LogInformation(
-                "Auto-closing orphan shift for user {UserId} (opened: {Timestamp}).",
+            var userName = shift.User?.FullName ?? shift.UserId.ToString();
+
+            _logger.LogWarning(
+                "Orphan shift detected for user {UserId} (opened: {Timestamp}). Creating alert.",
                 shift.UserId, shift.OfficialTimestamp);
 
-            await AutoCloseShiftAsync(shift);
+            await _alertRepository.AddAsync(new SystemAlert
+            {
+                Id = Guid.NewGuid(),
+                Message = $"User {userName} has an open shift for over 12 hours.",
+                Severity = AlertSeverity.Warning,
+                CreatedAtUtc = DateTime.UtcNow
+            });
         }
     }
 
-    public async Task<AttendanceLog> AdminCloseShiftAsync(Guid userId)
+    public async Task<AttendanceLog> AdminCloseShiftAsync(ManualShiftCloseDto dto)
     {
-        var lastLog = await _attendanceRepository.GetLastLogForUserAsync(userId);
+        var lastLog = await _attendanceRepository.GetLastLogForUserAsync(dto.UserId);
 
         if (lastLog == null || lastLog.EventType != EventType.ClockIn)
             throw new InvalidOperationException(
                 "Cannot close shift: the user does not have an active shift.");
 
-        var (timestamp, source) = await GetVerifiedTimeAsync(userId);
-
         var closeLog = new AttendanceLog
         {
             Id = Guid.NewGuid(),
-            UserId = userId,
-            EventType = EventType.AutoClose,
-            OfficialTimestamp = timestamp,
-            TimeSource = $"Admin Override via {source}",
-            IsAutoClosed = true
+            UserId = dto.UserId,
+            EventType = EventType.ManualClose,
+            OfficialTimestamp = dto.ManualEndTime,
+            TimeSource = "Admin-Override",
+            IsManuallyClosed = true,
+            ManualCloseReason = dto.Reason
         };
 
         await _attendanceRepository.AddAsync(closeLog);
 
+        var userName = lastLog.User?.FullName ?? dto.UserId.ToString();
+
         await _alertRepository.AddAsync(new SystemAlert
         {
             Id = Guid.NewGuid(),
-            Message = $"Shift for user {userId} was manually closed by an administrator.",
+            Message = $"Shift for user {userName} was manually closed by an administrator. Reason: {dto.Reason}",
             Severity = AlertSeverity.Info,
             CreatedAtUtc = DateTime.UtcNow
         });
 
         _logger.LogInformation(
-            "Admin force-closed shift for user {UserId} at {Timestamp}.",
-            userId, timestamp);
+            "Admin force-closed shift for user {UserId} with end time {EndTime}. Reason: {Reason}",
+            dto.UserId, dto.ManualEndTime, dto.Reason);
 
         return closeLog;
     }
@@ -193,36 +189,5 @@ public class AttendanceService : IAttendanceService
 
             throw;
         }
-    }
-
-    /// <summary>
-    /// Creates an AutoClose log entry and a Warning alert for the given open ClockIn.
-    /// The OfficialTimestamp is set to ClockIn + 16 h so payroll is deterministic
-    /// and does not depend on when the system discovers the orphan.
-    /// </summary>
-    private async Task AutoCloseShiftAsync(AttendanceLog openClockIn)
-    {
-        var closeTimestamp = openClockIn.OfficialTimestamp.Add(OrphanShiftThreshold);
-
-        await _attendanceRepository.AddAsync(new AttendanceLog
-        {
-            Id = Guid.NewGuid(),
-            UserId = openClockIn.UserId,
-            EventType = EventType.AutoClose,
-            OfficialTimestamp = closeTimestamp,
-            TimeSource = "System Auto-Close",
-            IsAutoClosed = true
-        });
-
-        await _alertRepository.AddAsync(new SystemAlert
-        {
-            Id = Guid.NewGuid(),
-            Message =
-                $"Shift for user {openClockIn.UserId} was automatically closed after " +
-                $"{OrphanShiftThreshold.TotalHours}h. " +
-                $"Original ClockIn: {openClockIn.OfficialTimestamp:O}.",
-            Severity = AlertSeverity.Warning,
-            CreatedAtUtc = DateTime.UtcNow
-        });
     }
 }

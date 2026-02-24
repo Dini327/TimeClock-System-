@@ -16,5 +16,6 @@ public class AttendanceLogDto
     public DateTimeOffset OfficialTimestamp { get; set; }
 
     public string TimeSource { get; set; } = string.Empty;
-    public bool IsAutoClosed { get; set; }
+    public bool IsManuallyClosed { get; set; }
+    public string? ManualCloseReason { get; set; }
 }
