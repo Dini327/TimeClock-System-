@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeClock.Infrastructure", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeClock.API", "TimeClock.API\TimeClock.API.csproj", "{4D3ADB66-05D2-4DFF-AA6A-4DBDF469F549}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeClock.Tests", "TimeClock.Tests\TimeClock.Tests.csproj", "{ACD354EB-942C-4946-90D2-BF99A324E31A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,18 @@ Global
 		{4D3ADB66-05D2-4DFF-AA6A-4DBDF469F549}.Release|x64.Build.0 = Release|Any CPU
 		{4D3ADB66-05D2-4DFF-AA6A-4DBDF469F549}.Release|x86.ActiveCfg = Release|Any CPU
 		{4D3ADB66-05D2-4DFF-AA6A-4DBDF469F549}.Release|x86.Build.0 = Release|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Debug|x64.Build.0 = Debug|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Debug|x86.Build.0 = Debug|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Release|x64.ActiveCfg = Release|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Release|x64.Build.0 = Release|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Release|x86.ActiveCfg = Release|Any CPU
+		{ACD354EB-942C-4946-90D2-BF99A324E31A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
